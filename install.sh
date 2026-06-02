@@ -319,16 +319,16 @@ apply_fixes() {
     sed -i 's/^license = "Apache-2.0"$/license = {text = "Apache-2.0"}/' pyproject.toml
     sed -i '/^license-files = /d' pyproject.toml
 
-    # Fix 2: CMakeLists.txt SM100/SM120 MOE kernels (check if already applied)
-    if grep -q 'cuda_archs_loose_intersection(SCALED_MM_ARCHS "10.0f;11.0f;12.0f"' CMakeLists.txt; then
-        log_info "CMakeLists.txt SM100/SM120 fix already applied"
-    else
-        log_info "Applying CMakeLists.txt SM100/SM120 fix..."
-        # Fix for CUDA 13.0+ (sm_100, sm_120)
-        sed -i 's/cuda_archs_loose_intersection(SCALED_MM_ARCHS "10.0f;11.0f"/cuda_archs_loose_intersection(SCALED_MM_ARCHS "10.0f;11.0f;12.0f"/' CMakeLists.txt
-        # Fix for older CUDA (sm_121a)
-        sed -i 's/cuda_archs_loose_intersection(SCALED_MM_ARCHS "10.0a"/cuda_archs_loose_intersection(SCALED_MM_ARCHS "10.0a;12.1a"/' CMakeLists.txt
-    fi
+    # Fix 2: CMakeLists.txt SM100/SM120 MoE kernels
+    #
+    # vLLM's CMakeLists.txt contains multiple SCALED_MM_ARCHS intersections.
+    # Some vLLM commits already include `12.0f` in one location but not others.
+    # Applying these substitutions is safe and idempotent (they won't match if already fixed).
+    log_info "Applying CMakeLists.txt SM100/SM120 fix (idempotent)..."
+    # Fix for CUDA 13.0+ (sm_100, sm_120)
+    sed -i 's/cuda_archs_loose_intersection(SCALED_MM_ARCHS "10.0f;11.0f"/cuda_archs_loose_intersection(SCALED_MM_ARCHS "10.0f;11.0f;12.0f"/' CMakeLists.txt
+    # Fix for older CUDA (sm_121a)
+    sed -i 's/cuda_archs_loose_intersection(SCALED_MM_ARCHS "10.0a"/cuda_archs_loose_intersection(SCALED_MM_ARCHS "10.0a;12.1a"/' CMakeLists.txt
 
     # Fix 3: flashinfer-python license field (pre-emptive fix)
     log_info "Pre-fixing flashinfer-python license issue..."
@@ -405,7 +405,7 @@ build_vllm() {
 
     # Check if build failed due to flashinfer license issue
     if [ $BUILD_STATUS -ne 0 ]; then
-        if grep -q "flashinfer.*license.*must be valid" "$INSTALL_DIR/vllm-build.log"; then
+        if grep -qiE "flashinfer|project\\.license" "$INSTALL_DIR/vllm-build.log"; then
             log_warning "Build failed due to flashinfer-python license issue"
             log_info "Applying flashinfer-python fix and retrying..."
 
